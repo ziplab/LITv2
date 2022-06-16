@@ -79,7 +79,7 @@ For semantic segmentation on ADE20K, please refer to [segmentation](https://gith
 
 ## Results and Model Zoo
 
-**Note:** For your convenience, you can download find all models and logs from [Google Drive](https://drive.google.com/drive/folders/1VAtrPWEqxi-6q6luwEVdYvkBYedApwbU?usp=sharing) (4.8G in total). Alternatively, we also provide download links from github.
+**Note:** For your convenience, you can find all models and logs from [Google Drive](https://drive.google.com/drive/folders/1VAtrPWEqxi-6q6luwEVdYvkBYedApwbU?usp=sharing) (4.8G in total). Alternatively, we also provide download links from github.
 
 ### Image Classification on ImageNet-1K
 
