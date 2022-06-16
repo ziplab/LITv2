@@ -1,0 +1,16 @@
+MODEL:
+  TYPE: litv2
+  NAME: litv2_small
+  DROP_PATH_RATE: 0.2
+  OFFSET_LR_MULTI: 0.01
+  LIT:
+    EMBED_DIM: 96
+    DEPTHS: [ 2, 2, 6, 2 ]
+    NUM_HEADS: [ 3, 6, 12, 24 ]
+    ALPHA: 0.9
+    LOCAL_WS: [0, 0, 2, 1]
+DATA:
+  NUM_WORKERS: 10
+  BATCH_SIZE: 128
+  DATA_PATH: /home/datasets/imagenet
+  DATASET: imagenet
