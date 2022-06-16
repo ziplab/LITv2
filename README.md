@@ -85,12 +85,12 @@ For semantic segmentation on ADE20K, please refer to [segmentation](https://gith
 
 All models are trained with 300 epochs with a total batch size of 1024 on 8 V100 GPUs.
 
-| Model   | Resolution | Params (M) | FLOPs (G) | Throughput (imgs/s) | Train Mem (GB) | Test Mem (GB) | Top-1 (%) | Download    |
-| ------- | ---------- | ---------- | --------- | ------------------- | -------------- | ------------- | --------- | ----------- |
-| LITv2-S | 224        | 28         | 3.7       | 1,471               | 5.1            | 1.2           | 82.0      | model & log |
-| LITv2-M | 224        | 49         | 7.5       | 812                 | 8.8            | 1.4           | 83.3      | model & log |
-| LITv2-B | 224        | 87         | 13.2      | 602                 | 12.2           | 2.1           | 83.6      | model & log |
-| LITv2-B | 384        | 87         | 39.7      | 198                 | 35.8           | 4.6           | 84.7      | model       |
+| Model   | Resolution | Params (M) | FLOPs (G) | Throughput (imgs/s) | Train Mem (GB) | Test Mem (GB) | Top-1 (%) | Download                                                     |
+| ------- | ---------- | ---------- | --------- | ------------------- | -------------- | ------------- | --------- | ------------------------------------------------------------ |
+| LITv2-S | 224        | 28         | 3.7       | 1,471               | 5.1            | 1.2           | 82.0      | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_s.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_s_log.txt) |
+| LITv2-M | 224        | 49         | 7.5       | 812                 | 8.8            | 1.4           | 83.3      | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_m.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_m_log.txt) |
+| LITv2-B | 224        | 87         | 13.2      | 602                 | 12.2           | 2.1           | 83.6      | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_b.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_b_log.txt) |
+| LITv2-B | 384        | 87         | 39.7      | 198                 | 35.8           | 4.6           | 84.7      | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_b_384.pth) |
 
 > By default, the throughput and memory footprint are tested on one RTX 3090 based on a batch size of 64. Memory is measured by the peak memory usage with `torch.cuda.max_memory_allocated()`. Throughput is averaged over 30 runs.
 
@@ -100,35 +100,35 @@ All models are trained with 1x schedule (12 epochs) with a total batch size of 1
 
 #### RetinaNet
 
-| Backbone | Window Size | Params (M) | FLOPs (G) | FPS  | box AP | Config | Download    |
-| -------- | ----------- | ---------- | --------- | ---- | ------ | ------ | ----------- |
-| LITv2-S  | 2           | 38         | 242       | 18.7 | 44.0   | link   | model & log |
-| LITv2-S  | 4           | 38         | 230       | 20.4 | 43.7   | link   | model & log |
-| LITv2-M  | 2           | 59         | 348       | 12.2 | 46.0   | link   | model & log |
-| LITv2-M  | 4           | 59         | 312       | 14.8 | 45.8   | link   | model & log |
-| LITv2-B  | 2           | 97         | 481       | 9.5  | 46.7   | link   | model & log |
-| LITv2-B  | 4           | 97         | 430       | 11.8 | 46.3   | link   | model & log |
+| Backbone | Window Size | Params (M) | FLOPs (G) | FPS  | box AP | Config                                                       | Download                                                     |
+| -------- | ----------- | ---------- | --------- | ---- | ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| LITv2-S  | 2           | 38         | 242       | 18.7 | 44.0   | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/retinanet_litv2_s_fpn_1x_coco.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_s_fpn_1x_coco.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_s_fpn_1x_coco_log.json) |
+| LITv2-S  | 4           | 38         | 230       | 20.4 | 43.7   | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/retinanet_litv2_s_fpn_1x_coco_ws_4.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_s_fpn_1x_coco_ws_4.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_s_fpn_1x_coco_ws_4_log.json) |
+| LITv2-M  | 2           | 59         | 348       | 12.2 | 46.0   | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/retinanet_litv2_m_fpn_1x_coco.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_m_fpn_1x_coco.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_m_fpn_1x_coco_log.json) |
+| LITv2-M  | 4           | 59         | 312       | 14.8 | 45.8   | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/retinanet_litv2_m_fpn_1x_coco_ws_4.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_m_fpn_1x_coco_ws_4.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_m_fpn_1x_coco_ws_4_log.json) |
+| LITv2-B  | 2           | 97         | 481       | 9.5  | 46.7   | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/retinanet_litv2_b_fpn_1x_coco.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_b_fpn_1x_coco.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_b_fpn_1x_coco_log.json) |
+| LITv2-B  | 4           | 97         | 430       | 11.8 | 46.3   | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/retinanet_litv2_b_fpn_1x_coco_ws_4.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_b_fpn_1x_coco_ws_4.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/retinanet_litv2_b_fpn_1x_coco_ws_4_log.json) |
 
 #### Mask R-CNN
 
-| Backbone | Window Size | Params (M) | FLOPs (G) | FPS  | box AP | mask AP | Config | Download    |
-| -------- | ----------- | ---------- | --------- | ---- | ------ | ------- | ------ | ----------- |
-| LITv2-S  | 2           | 47         | 261       | 18.7 | 44.9   | 40.8    | link   | model & log |
-| LITv2-S  | 4           | 47         | 249       | 21.9 | 44.7   | 40.7    | link   | model & log |
-| LITv2-M  | 2           | 68         | 367       | 12.6 | 46.8   | 42.3    | link   | model & log |
-| LITv2-M  | 4           | 68         | 315       | 16.0 | 46.5   | 42.0    | link   | model & log |
-| LITv2-B  | 2           | 106        | 500       | 9.3  | 47.3   | 42.6    | link   | model & log |
-| LITv2-B  | 4           | 106        | 449       | 11.5 | 46.8   | 42.3    | link   | model & log |
+| Backbone | Window Size | Params (M) | FLOPs (G) | FPS  | box AP | mask AP | Config                                                       | Download                                                     |
+| -------- | ----------- | ---------- | --------- | ---- | ------ | ------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| LITv2-S  | 2           | 47         | 261       | 18.7 | 44.9   | 40.8    | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/mask_rcnn_litv2_s_fpn_1x_coco.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_s_fpn_1x_coco.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_s_fpn_1x_coco_log.json) |
+| LITv2-S  | 4           | 47         | 249       | 21.9 | 44.7   | 40.7    | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/mask_rcnn_litv2_s_fpn_1x_coco_ws_4.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_s_fpn_1x_coco_ws_4.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_s_fpn_1x_coco_ws_4_log.json) |
+| LITv2-M  | 2           | 68         | 367       | 12.6 | 46.8   | 42.3    | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/mask_rcnn_litv2_m_fpn_1x_coco.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_m_fpn_1x_coco.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_m_fpn_1x_coco_log.json) |
+| LITv2-M  | 4           | 68         | 315       | 16.0 | 46.5   | 42.0    | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/mask_rcnn_litv2_m_fpn_1x_coco_ws_4.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_m_fpn_1x_coco_ws_4.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_m_fpn_1x_coco_ws_4_log.json) |
+| LITv2-B  | 2           | 106        | 500       | 9.3  | 47.3   | 42.6    | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/mask_rcnn_litv2_b_fpn_1x_coco.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_b_fpn_1x_coco.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_b_fpn_1x_coco_log.json) |
+| LITv2-B  | 4           | 106        | 449       | 11.5 | 46.8   | 42.3    | [config](https://github.com/ziplab/LITv2/blob/main/detection/configs/litv2/mask_rcnn_litv2_b_fpn_1x_coco_ws_4.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_b_fpn_1x_coco_ws_4.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/mask_rcnn_litv2_b_fpn_1x_coco_ws_4_log.json) |
 
 ### Semantic Segmentation on ADE20K
 
 All models are trained with 80K iterations with a total batch size of 16 on 8 V100 GPUs.
 
-| Backbone | Params (M) | FLOPs (G) | FPS  | mIoU | Config | Download    |
-| -------- | ---------- | --------- | ---- | ---- | ------ | ----------- |
-| LITv2-S  | 31         | 41        | 42.6 | 44.3 | link   | model & log |
-| LITv2-M  | 52         | 63        | 28.5 | 45.7 | link   | model & log |
-| LITv2-B  | 90         | 93        | 27.5 | 47.2 | link   | model & log |
+| Backbone | Params (M) | FLOPs (G) | FPS  | mIoU | Config                                                       | Download                                                     |
+| -------- | ---------- | --------- | ---- | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| LITv2-S  | 31         | 41        | 42.6 | 44.3 | [config](https://github.com/ziplab/LITv2/blob/main/segmentation/configs/litv2/litv2_s_fpn_r50_512x512_80k_ade20k.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_s_fpn_r50_512x512_80k_ade20k.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_s_fpn_r50_512x512_80k_ade20k_log.json) |
+| LITv2-M  | 52         | 63        | 28.5 | 45.7 | [config](https://github.com/ziplab/LITv2/blob/main/segmentation/configs/litv2/litv2_m_fpn_r50_512x512_80k_ade20k.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_m_fpn_r50_512x512_80k_ade20k.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_m_fpn_r50_512x512_80k_ade20k_log.json) |
+| LITv2-B  | 90         | 93        | 27.5 | 47.2 | [config](https://github.com/ziplab/LITv2/blob/main/segmentation/configs/litv2/litv2_b_fpn_r50_512x512_80k_ade20k.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_b_fpn_r50_512x512_80k_ade20k.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_b_fpn_r50_512x512_80k_ade20k_log.json) |
 
 
 
@@ -158,7 +158,7 @@ If you find the code useful, please also consider the following BibTeX entry
 
 
 
-# License
+## License
 
 This repository is released under the Apache 2.0 license as found in the [LICENSE](https://github.com/ziplab/LITv2/blob/main/LICENSE) file.
 

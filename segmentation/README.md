@@ -89,3 +89,16 @@ python -m torch.distributed.launch --nproc_per_node=1 --master_port=29500 tools/
        --checkpoint retinanet_litv2_s_fpn_1x_coco.pth \
        --launcher pytorch
 ```
+
+## Results
+
+| Backbone | Params (M) | FLOPs (G) | FPS  | mIoU | Config                                                       | Download                                                     |
+| -------- | ---------- | --------- | ---- | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| LITv2-S  | 31         | 41        | 42.6 | 44.3 | [config](https://github.com/ziplab/LITv2/blob/main/segmentation/configs/litv2/litv2_s_fpn_r50_512x512_80k_ade20k.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_s_fpn_r50_512x512_80k_ade20k.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_s_fpn_r50_512x512_80k_ade20k_log.json) |
+| LITv2-M  | 52         | 63        | 28.5 | 45.7 | [config](https://github.com/ziplab/LITv2/blob/main/segmentation/configs/litv2/litv2_m_fpn_r50_512x512_80k_ade20k.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_m_fpn_r50_512x512_80k_ade20k.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_m_fpn_r50_512x512_80k_ade20k_log.json) |
+| LITv2-B  | 90         | 93        | 27.5 | 47.2 | [config](https://github.com/ziplab/LITv2/blob/main/segmentation/configs/litv2/litv2_b_fpn_r50_512x512_80k_ade20k.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_b_fpn_r50_512x512_80k_ade20k.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_b_fpn_r50_512x512_80k_ade20k_log.json) |
+
+
+## License
+
+This repository is released under the Apache 2.0 license as found in the [LICENSE](https://github.com/ziplab/LITv2/blob/main/LICENSE) file.
