@@ -78,7 +78,7 @@ Accuracy of the network on the 50000 test images: 82.0%
 To test the throughput, you can run
 
 ```bash
-python -m torch.distributed.launch --nproc_per_node 1 --master_port 13335  main.py --cfg configs/lit-small.yaml --throughput
+python -m torch.distributed.launch --nproc_per_node 1 --master_port 13335  main.py --cfg configs/litv2-small.yaml --throughput
 ```
 
 ## Results
