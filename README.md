@@ -6,6 +6,11 @@ This is the official PyTorch implementation of [Fast Vision Transformers with Hi
 
 By [Zizheng Pan](https://scholar.google.com.au/citations?user=w_VMopoAAAAJ&hl=en), [Jianfei Cai](https://scholar.google.com/citations?user=N6czCoUAAAAJ&hl=en), and [Bohan Zhuang](https://scholar.google.com.au/citations?user=DFuDBBwAAAAJ).
 
+## News
+
+- **15/09/2022.** LITv2 is accepted by NeurIPS 2022! 🔥🔥🔥
+  
+- **16/06/2022.** We release the source code for classification/detection/segmentation, along with the pretrained weights. Any issues are welcomed!
 
 
 ## A Gentle Introduction
@@ -18,12 +23,6 @@ We introduce LITv2, a simple and effective ViT which performs favourably against
 ![hilo](.github/hilo.png)
 
 The core of LITv2: **HiLo attention** HiLo is inspired by the insight that high frequencies in an image capture local fine details and low frequencies focus on global structures, whereas a multi-head self-attention layer neglects the characteristic of different frequencies. Therefore, we propose to disentangle the high/low frequency patterns in an attention layer by separating the heads into two groups, where one group encodes high frequencies via self-attention within each local window, and another group performs the attention to model the global relationship between the average-pooled low-frequency keys from each window and each query position in the input feature map. 
-
-
-
-## News
-
-- **16/06/2022.** We release the source code for classification/detection/segmentation, along with the pretrained weights. Any issues are welcomed!
 
 
 
