@@ -130,6 +130,26 @@ All models are trained with 80K iterations with a total batch size of 16 on 8 V1
 | LITv2-B  | 90         | 93        | 27.5 | 47.2 | [config](https://github.com/ziplab/LITv2/blob/main/segmentation/configs/litv2/litv2_b_fpn_r50_512x512_80k_ade20k.py) | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_b_fpn_r50_512x512_80k_ade20k.pth) & [log](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_b_fpn_r50_512x512_80k_ade20k_log.json) |
 
 
+### Benchmarking Throughput on More GPUs
+
+| Model         | Params (M) | FLOPs (G) | A100      | V100      | RTX 6000 | RTX 3090  | Top-1 (%) |
+| ------------- | ---------- | --------- | --------- | --------- | -------- | --------- | --------- |
+| ResNet-50     | 26         | 4.1       | 1,424     | 1,123     | 877      | 1,279     | 80.4      |
+| PVT-S         | 25         | 3.8       | 1,460     | 798       | 548      | 1,007     | 79.8      |
+| Twins-PCPVT-S | 24         | 3.8       | 1,455     | 792       | 529      | 998       | 81.2      |
+| Swin-Ti       | 28         | 4.5       | 1,564     | 1,039     | 710      | 961       | 81.3      |
+| TNT-S         | 24         | 5.2       | 802       | 431       | 298      | 534       | 81.3      |
+| CvT-13        | 20         | 4.5       | 1,595     | 716       | 379      | 947       | 81.6      |
+| CoAtNet-0     | 25         | 4.2       | 1,538     | 962       | 643      | 1,151     | 81.6      |
+| CaiT-XS24     | 27         | 5.4       | 991       | 484       | 299      | 623       | 81.8      |
+| PVTv2-B2      | 25         | 4.0       | 1,175     | 670       | 451      | 854       | 82.0      |
+| XCiT-S12      | 26         | 4.8       | 1,727     | 761       | 504      | 1,068     | 82.0      |
+| ConvNext-Ti   | 28         | 4.5       | 1,654     | 762       | 571      | 1,079     | 82.1      |
+| Focal-Tiny    | 29         | 4.9       | 471       | 372       | 261      | 384       | **82.2**  |
+| **LITv2-S**       | 28         | **3.7**   | **1,874** | **1,304** | **928**  | **1,471** | 82.0      |
+
+
+
 
 ## Citation
 
