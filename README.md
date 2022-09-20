@@ -24,6 +24,28 @@ We introduce LITv2, a simple and effective ViT which performs favourably against
 
 The core of LITv2: **HiLo attention** HiLo is inspired by the insight that high frequencies in an image capture local fine details and low frequencies focus on global structures, whereas a multi-head self-attention layer neglects the characteristic of different frequencies. Therefore, we propose to disentangle the high/low frequency patterns in an attention layer by separating the heads into two groups, where one group encodes high frequencies via self-attention within each local window, and another group performs the attention to model the global relationship between the average-pooled low-frequency keys from each window and each query position in the input feature map. 
 
+### A Simple Demo
+To quickly understand HiLo attention, you only need to install PyTorch and try the following code in the root directory of this repo.
+
+```python
+from hilo import HiLo
+import torch
+
+model = HiLo(dim=384, num_heads=12, window_size=2, alpha=0.5)
+
+x = torch.randn(64, 196, 384) # batch_size x num_tokens x hidden_dimension
+out = model(x, 14, 14)
+print(out.shape)
+print(model.flops(14, 14)) # the numeber of FLOPs
+```
+
+Output:
+
+```bash
+torch.Size([64, 196, 384])
+83467776
+```
+
 
 
 ## Installation
