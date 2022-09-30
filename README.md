@@ -8,6 +8,8 @@ By [Zizheng Pan](https://scholar.google.com.au/citations?user=w_VMopoAAAAJ&hl=en
 
 ## News
 
+- **30/09/2022.** Add [benchmarking results](https://github.com/ziplab/LITv2#single-attention-layer-benchmark) for single attention layer. HiLo is super fast on both CPU and GPU!
+  
 - **15/09/2022.** LITv2 is accepted by NeurIPS 2022! 🔥🔥🔥
   
 - **16/06/2022.** We release the source code for classification/detection/segmentation, along with the pretrained weights. Any issues are welcomed!
@@ -171,6 +173,14 @@ All models are trained with 80K iterations with a total batch size of 16 on 8 V1
 | **LITv2-S**       | 28         | **3.7**   | **1,874** | **1,304** | **928**  | **1,471** | 82.0      |
 
 
+
+### Single Attention Layer Benchmark
+
+The following visualization results can refer to [vit-attention-benchmark](https://github.com/HubHop/vit-attention-benchmark).
+
+![image-20220930152841471](.github/image-20220930152841471.png)
+
+![image-20220930152921770](.github/image-20220930152921770.png)
 
 
 ## Citation
