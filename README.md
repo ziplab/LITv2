@@ -178,10 +178,10 @@ All models are trained with 80K iterations with a total batch size of 16 on 8 V1
 If you use LITv2 in your research, please consider the following BibTeX entry and giving us a star 🌟.
 
 ```BibTeX
-@article{pan2022hilo
+@inproceedings{pan2022hilo
   title={Fast Vision Transformers with HiLo Attention},
   author={Pan, Zizheng and Cai, Jianfei and Zhuang, Bohan},
-  journal={arXiv preprint arXiv:2205.13213},
+  booktitle={NeurIPS},
   year={2022}
 }
 ```
