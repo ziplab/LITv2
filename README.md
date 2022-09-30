@@ -192,7 +192,7 @@ If you find the code useful, please also consider the following BibTeX entry
 @inproceedings{pan2022litv1,
   title={Less is More: Pay Less Attention in Vision Transformers},
   author={Pan, Zizheng and Zhuang, Bohan and He, Haoyu and Liu, Jing and Cai, Jianfei},
-  booktitle = {AAAI},
+  booktitle={AAAI},
   year={2022}
 }
 ```
