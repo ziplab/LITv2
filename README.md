@@ -178,9 +178,7 @@ All models are trained with 80K iterations with a total batch size of 16 on 8 V1
 
 The following visualization results can refer to [vit-attention-benchmark](https://github.com/HubHop/vit-attention-benchmark).
 
-![image-20220930152841471](.github/image-20220930152841471.png)
-
-![image-20220930152921770](.github/image-20220930152921770.png)
+![hilo_cpu_gpu](.github/hilo_cpu_gpu.png)
 
 
 ## Citation
