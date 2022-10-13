@@ -8,7 +8,7 @@ By [Zizheng Pan](https://scholar.google.com.au/citations?user=w_VMopoAAAAJ&hl=en
 
 ## News
 
-- **13/10/2022.** Fix compatibility with higher version of timm.
+- **13/10/2022.** Update code for higher version of timm. Compatible with PyTorch 1.12.1 + CUDA 11.3 + timm 0.6.11.
 
 - **30/09/2022.** Add [benchmarking results](https://github.com/ziplab/LITv2#single-attention-layer-benchmark) for single attention layer. HiLo is super fast on both CPU and GPU!
   
