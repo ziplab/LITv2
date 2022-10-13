@@ -8,6 +8,8 @@ By [Zizheng Pan](https://scholar.google.com.au/citations?user=w_VMopoAAAAJ&hl=en
 
 ## News
 
+- **13/10/2022.** Fix compatibility with higher version of timm.
+
 - **30/09/2022.** Add [benchmarking results](https://github.com/ziplab/LITv2#single-attention-layer-benchmark) for single attention layer. HiLo is super fast on both CPU and GPU!
   
 - **15/09/2022.** LITv2 is accepted by NeurIPS 2022! 🔥🔥🔥
@@ -55,7 +57,8 @@ torch.Size([64, 196, 384])
 ### Requirements
 
 - Linux with Python ≥ 3.6
-- PyTorch 1.8.1
+- PyTorch >= 1.8.1
+- timm >= 0.3.2
 - CUDA 11.1
 - An NVIDIA GPU
 
@@ -70,7 +73,7 @@ conda activate lit
 # Install Pytorch and TorchVision
 pip install torch==1.8.1+cu111 torchvision==0.9.1+cu111 torchaudio==0.8.1 -f https://download.pytorch.org/whl/torch_stable.html
 
-pip install timm==0.3.2
+pip install timm
 pip install ninja
 pip install tensorboard
 

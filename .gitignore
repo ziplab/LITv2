@@ -134,6 +134,7 @@ figures/*
 plots/*
 .idea/*
 checkpoints/
+output/*
 *.out
 *.err
 .vscode/
