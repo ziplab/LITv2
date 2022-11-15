@@ -1,4 +1,4 @@
-# Fast Vision Transformers  with HiLo Attention👋
+# Fast Vision Transformers  with HiLo Attention👋(NeurIPS 2022 Spotlight)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) 
 <a href="https://pytorch.org/get-started/locally/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white"></a>
 
@@ -7,6 +7,8 @@ This is the official PyTorch implementation of [Fast Vision Transformers with Hi
 By [Zizheng Pan](https://scholar.google.com.au/citations?user=w_VMopoAAAAJ&hl=en), [Jianfei Cai](https://scholar.google.com/citations?user=N6czCoUAAAAJ&hl=en), and [Bohan Zhuang](https://scholar.google.com.au/citations?user=DFuDBBwAAAAJ).
 
 ## News
+
+- **11/11/2022.** LITv2 will be presented as Spotlight!
 
 - **13/10/2022.** Update code for higher version of timm. Compatible with PyTorch 1.12.1 + CUDA 11.3 + timm 0.6.11.
 
