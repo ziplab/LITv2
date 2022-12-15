@@ -8,6 +8,8 @@ By [Zizheng Pan](https://scholar.google.com.au/citations?user=w_VMopoAAAAJ&hl=en
 
 ## News
 
+- **15/12/2022**. Releasing ImageNet pretrained weights of using different values of alpha.
+
 - **11/11/2022.** LITv2 will be presented as Spotlight!
 
 - **13/10/2022.** Update code for higher version of timm. Compatible with PyTorch 1.12.1 + CUDA 11.3 + timm 0.6.11.
@@ -121,6 +123,24 @@ All models are trained with 300 epochs with a total batch size of 1024 on 8 V100
 | LITv2-B | 384        | 87         | 39.7      | 198                 | 35.8           | 4.6           | 84.7      | [model](https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_b_384.pth) |
 
 > By default, the throughput and memory footprint are tested on one RTX 3090 based on a batch size of 64. Memory is measured by the peak memory usage with `torch.cuda.max_memory_allocated()`. Throughput is averaged over 30 runs.
+
+
+
+### Pretrained LITv2-S with Different Values of Alpha
+
+| Alpha | Params (M) | Lo-Fi Heads | Hi-Fi Heads | FLOPs (G) | ImageNet Top1 (%) | Download                                                     |
+| ----- | ---------- | ----------- | ----------- | --------- | ----------------- | ------------------------------------------------------------ |
+| 0.0   | 28         | 0           | 12          | 3.97      | 81.16             | [github](https://github.com/ziplab/LITv2/releases/download/v1.1/alpha_0.pth) |
+| 0.2   | 28         | 2           | 10          | 3.88      | 81.89             | [github](https://github.com/ziplab/LITv2/releases/download/v1.1/alpha_0.2.pth) |
+| 0.4   | 28         | 4           | 8           | 3.82      | 81.81             | [github](https://github.com/ziplab/LITv2/releases/download/v1.1/alpha_0.4.pth) |
+| 0.5   | 28         | 6           | 6           | 3.77      | 81.88             | [github](https://github.com/ziplab/LITv2/releases/download/v1.1/alpha_0.5.pth) |
+| 0.7   | 28         | 8           | 4           | 3.74      | 81.94             | [github](https://github.com/ziplab/LITv2/releases/download/v1.1/alpha_0.7.pth) |
+| 0.9   | 28         | 10          | 2           | 3.73      | 82.03             | [github](https://github.com/ziplab/LITv2/releases/download/v1.1/alpha_0.9.pth) |
+| 1.0   | 28         | 12          | 0           | 3.70      | 81.89             | [github](https://github.com/ziplab/LITv2/releases/download/v1.1/alpha_1.pth) |
+
+> Pretrained weights from the experiments of Figure 4: Effect of α based on LITv2-S.
+
+
 
 ### Object Detection on COCO 2017
 
