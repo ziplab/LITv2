@@ -211,7 +211,7 @@ The following visualization results can refer to [vit-attention-benchmark](https
 If you use LITv2 in your research, please consider the following BibTeX entry and giving us a star 🌟.
 
 ```BibTeX
-@inproceedings{pan2022hilo
+@inproceedings{pan2022hilo,
   title={Fast Vision Transformers with HiLo Attention},
   author={Pan, Zizheng and Cai, Jianfei and Zhuang, Bohan},
   booktitle={NeurIPS},
