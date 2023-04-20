@@ -101,7 +101,7 @@ cd LITv2/classification/mm_modules/DCN
 python setup.py install
 ```
 
-Second, convert the model into ONNX,
+Second, convert the model into ONNX. By default, we set the batch size into 64 and test with 224x224 images.
 
 ```bash
 cd LITv2/classification
