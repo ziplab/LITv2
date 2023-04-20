@@ -87,20 +87,11 @@ class DeformConv2dPack(DeformConv2d):
         self.conv_offset.weight.data.zero_()
         self.conv_offset.bias.data.zero_()
 
-    def forward(self, input, return_offset=False):
+    def forward(self, input):
         offset = self.conv_offset(input)
         bs = input.size()[0]
         im2col_step = bs // 2 if bs > 1 else 1
-        # return DeformConv2dFunction.apply(input, offset,
-        #                                   self.weight,
-        #                                   self.bias,
-        #                                   self.stride,
-        #                                   self.padding,
-        #                                   self.dilation,
-        #                                   self.groups,
-        #                                   self.deformable_groups,
-        #                                   im2col_step)
-        out = DeformConv2dFunction.apply(input, offset,
+        return DeformConv2dFunction.apply(input, offset,
                                           self.weight,
                                           self.bias,
                                           self.stride,
@@ -109,9 +100,6 @@ class DeformConv2dPack(DeformConv2d):
                                           self.groups,
                                           self.deformable_groups,
                                           im2col_step)
-        if return_offset:
-            return out, offset
-        return out, None
 
 
 class DeformConv2dPackMore(DeformConv2d):

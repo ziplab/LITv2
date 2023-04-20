@@ -101,7 +101,7 @@ class DTM(nn.Module):
         self.norm_layer = nn.BatchNorm2d(dim*2)
         self.act_layer = nn.GELU()
 
-    def forward(self, x, return_offset=False):
+    def forward(self, x):
         """
         x: B, H*W, C
         """
@@ -111,12 +111,8 @@ class DTM(nn.Module):
         assert H % 2 == 0 and W % 2 == 0, f"x size ({H}*{W}) are not even."
 
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2).contiguous()
-        x, offset = self.dconv(x, return_offset=False)
-        x = self.act_layer(self.norm_layer(x)).flatten(2).transpose(1, 2)
-        if return_offset:
-            return x, offset
-        else:
-            return x
+        x = self.act_layer(self.norm_layer(self.dconv(x))).flatten(2).transpose(1, 2)
+        return x
 
     def extra_repr(self) -> str:
         return f"input_resolution={self.input_resolution}, dim={self.dim}"

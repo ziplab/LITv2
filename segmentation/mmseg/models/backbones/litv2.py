@@ -374,19 +374,16 @@ class DTM(nn.Module):
         self.norm_layer = nn.BatchNorm2d(dim*2)
         self.act_layer = nn.GELU()
 
-    def forward(self, x, H, W, return_offset=False):
+    def forward(self, x, H, W):
         """
         x: B, H*W, C
         """
         B, L, C = x.shape
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2).contiguous()
-        x, offset = self.dconv(x, return_offset=False)
+        x = self.dconv(x)
         _, _, new_H, new_W = x.shape
         x = self.act_layer(self.norm_layer(x)).flatten(2).transpose(1, 2)
-        if return_offset:
-            return x, new_H, new_W, offset
-        else:
-            return x, new_H, new_W
+        return x, new_H, new_W
 
     def extra_repr(self) -> str:
         return f"input_resolution={self.input_resolution}, dim={self.dim}"
