@@ -41,13 +41,13 @@ Make sure you have the correct ImageNet `DATA_PATH` in `config/*.yaml`.
 To train a model on ImageNet:
 
 ```bash
-torchrun --standalone --nnodes=1 --nproc-per-node=[num_gpus] main.py --cfg [path/to/config]
+torchrun --standalone --nnodes=1 --nproc_per_node=[num_gpus] main.py --cfg [path/to/config]
 ```
 
 For example, you can train LITv2-S with 8 GPUs (1 node) by
 
 ```bash
-torchrun --standalone --nnodes=1 --nproc-per-node=8 main.py --cfg configs/litv2-small.yaml
+torchrun --standalone --nnodes=1 --nproc_per_node=8 main.py --cfg configs/litv2-small.yaml
 ```
 
 Note: In our experiments, we train all models ImageNet-1K with 8 GPUs under a total batch size of 1024.
@@ -57,13 +57,13 @@ Note: In our experiments, we train all models ImageNet-1K with 8 GPUs under a to
 To evaluate a model, you can run
 
 ```bash
-torchrun --standalone --nnodes=1 --nproc-per-node=[num_gpus] main.py --cfg [path/to/config] --resume [path/to/checkpoint] --eval
+torchrun --standalone --nnodes=1 --nproc_per_node=[num_gpus] main.py --cfg [path/to/config] --resume [path/to/checkpoint] --eval
 ```
 
 For example, to evaluate LIT-S with 1 GPU, you can run:
 
 ```bash
-torchrun --standalone --nnodes=1 --nproc-per-node=1 main.py --cfg configs/litv2-small.yaml --resume ./litv2_s.pth --eval
+torchrun --standalone --nnodes=1 --nproc_per_node=1 main.py --cfg configs/litv2-small.yaml --resume ./litv2_s.pth --eval
 ```
 
 This should give
@@ -78,7 +78,7 @@ Accuracy of the network on the 50000 test images: 82.0%
 To test the throughput, you can run
 
 ```bash
-torchrun --standalone --nnodes=1 --nproc-per-node=1 main.py --cfg configs/litv2-small.yaml --throughput
+torchrun --standalone --nnodes=1 --nproc_per_node=1 main.py --cfg configs/litv2-small.yaml --throughput
 ```
 
 
