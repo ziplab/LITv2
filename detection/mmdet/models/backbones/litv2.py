@@ -5,12 +5,86 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 import numpy as np
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-
-from mmcv_custom import load_checkpoint
-from mmdet.utils import get_root_logger
-from ..builder import BACKBONES
 from mm_modules.DCN.modules.deform_conv2d import DeformConv2dPack
 import math
+from mmdet.registry import MODELS
+from mmengine.runner.checkpoint import load_state_dict
+from mmengine.logging import MMLogger
+from mmengine.runner.checkpoint import CheckpointLoader
+
+def load_checkpoint(model,
+                    checkpoint,
+                    strict=False,
+                    logger=None):
+    """Load checkpoint from a file or URI.
+
+    Args:
+        model (Module): Module to load checkpoint.
+        filename (str): Accept local filepath, URL, ``torchvision://xxx``,
+            ``open-mmlab://xxx``. Please refer to ``docs/model_zoo.md`` for
+            details.
+        map_location (str): Same as :func:`torch.load`.
+        strict (bool): Whether to allow different params for the model and
+            checkpoint.
+        logger (:mod:`logging.Logger` or None): The logger for error message.
+
+    Returns:
+        dict or OrderedDict: The loaded checkpoint.
+    """
+    # checkpoint = torch.load(filename, map_location=map_location)
+    # OrderedDict is a subclass of dict
+    if not isinstance(checkpoint, dict):
+        raise RuntimeError(
+            f'No state_dict found in checkpoint file')
+
+    # checkpoint = ckpt
+    # get state_dict from checkpoint
+    if 'state_dict' in checkpoint:
+        state_dict = checkpoint['state_dict']
+    elif 'model' in checkpoint:
+        state_dict = checkpoint['model']
+    else:
+        state_dict = checkpoint
+    # strip prefix of state_dict
+    if list(state_dict.keys())[0].startswith('module.'):
+        state_dict = {k[7:]: v for k, v in state_dict.items()}
+
+    # for MoBY, load model of online branch
+    if sorted(list(state_dict.keys()))[0].startswith('encoder'):
+        state_dict = {k.replace('encoder.', ''): v for k, v in state_dict.items() if k.startswith('encoder.')}
+
+    # reshape absolute position embedding
+    if state_dict.get('absolute_pos_embed') is not None:
+        absolute_pos_embed = state_dict['absolute_pos_embed']
+        N1, L, C1 = absolute_pos_embed.size()
+        N2, C2, H, W = model.absolute_pos_embed.size()
+        if N1 != N2 or C1 != C2 or L != H*W:
+            logger.warning("Error in loading absolute_pos_embed, pass")
+        else:
+            state_dict['absolute_pos_embed'] = absolute_pos_embed.view(N2, H, W, C2).permute(0, 3, 1, 2)
+
+    # interpolate position bias table if needed
+    relative_position_bias_table_keys = [k for k in state_dict.keys() if "relative_position_bias_table" in k]
+    for table_key in relative_position_bias_table_keys:
+        table_pretrained = state_dict[table_key]
+        table_current = model.state_dict()[table_key]
+        L1, nH1 = table_pretrained.size()
+        L2, nH2 = table_current.size()
+        if nH1 != nH2:
+            logger.warning(f"Error in loading {table_key}, pass")
+        else:
+            if L1 != L2:
+                S1 = int(L1 ** 0.5)
+                S2 = int(L2 ** 0.5)
+                table_pretrained_resized = F.interpolate(
+                     table_pretrained.permute(1, 0).view(1, nH1, S1, S1),
+                     size=(S2, S2), mode='bicubic')
+                state_dict[table_key] = table_pretrained_resized.view(nH2, L2).permute(1, 0)
+
+    # load state_dict
+    load_state_dict(model, state_dict, strict, logger)
+    return checkpoint
+
 
 class DWConv(nn.Module):
     def __init__(self, dim=768):
@@ -482,7 +556,7 @@ class LITLayer(nn.Module):
         else:
             return x, H, W, x, H, W
 
-@BACKBONES.register_module()
+@MODELS.register_module()
 class LITv2(nn.Module):
     def __init__(self,
                  pretrain_img_size=224,
@@ -506,9 +580,11 @@ class LITv2(nn.Module):
                  use_checkpoint=False,
                  has_msa=[0, 0, 1, 1],
                  alpha=0.5,
-                 local_ws=[0, 0, 2, 1]):
+                 local_ws=[0, 0, 2, 1],
+                 init_cfg=None
+                 ):
         super().__init__()
-
+        self.init_cfg = init_cfg
         # new from v2
         self.local_ws = local_ws
         self.alpha = alpha
@@ -590,7 +666,7 @@ class LITv2(nn.Module):
                 for param in m.parameters():
                     param.requires_grad = False
 
-    def init_weights(self, pretrained=None):
+    def init_weights(self):
         """Initialize the weights in backbone.
 
         Args:
@@ -606,15 +682,21 @@ class LITv2(nn.Module):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
+        logger = MMLogger.get_current_instance()
+        self.apply(_init_weights)
+        if self.init_cfg is not None:
+            ckpt = CheckpointLoader.load_checkpoint(
+                self.init_cfg.checkpoint, logger=logger, map_location='cpu')
+            load_checkpoint(self, ckpt, strict=False)
 
-        if isinstance(pretrained, str):
-            self.apply(_init_weights)
-            logger = get_root_logger()
-            load_checkpoint(self, pretrained, strict=False, logger=logger)
-        elif pretrained is None:
-            self.apply(_init_weights)
-        else:
-            raise TypeError('pretrained must be a str or None')
+        # if isinstance(pretrained, str):
+        #     self.apply(_init_weights)
+        #     # logger = get_root_logger()
+        #     load_checkpoint(self, pretrained, strict=False)
+        # elif pretrained is None:
+        #     self.apply(_init_weights)
+        # else:
+        #     raise TypeError('pretrained must be a str or None')
 
     def forward(self, x):
         """Forward function."""

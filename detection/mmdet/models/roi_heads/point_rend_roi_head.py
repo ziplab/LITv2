@@ -1,102 +1,97 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 # Modified from https://github.com/facebookresearch/detectron2/tree/master/projects/PointRend  # noqa
+from typing import List, Tuple
 
 import torch
 import torch.nn.functional as F
 from mmcv.ops import point_sample, rel_roi_point_to_rel_img_point
+from torch import Tensor
 
-from mmdet.core import bbox2roi, bbox_mapping, merge_aug_masks
-from .. import builder
-from ..builder import HEADS
+from mmdet.registry import MODELS
+from mmdet.structures.bbox import bbox2roi
+from mmdet.utils import ConfigType, InstanceList
+from ..task_modules.samplers import SamplingResult
+from ..utils import empty_instances
 from .standard_roi_head import StandardRoIHead
 
 
-@HEADS.register_module()
+@MODELS.register_module()
 class PointRendRoIHead(StandardRoIHead):
     """`PointRend <https://arxiv.org/abs/1912.08193>`_."""
 
-    def __init__(self, point_head, *args, **kwargs):
+    def __init__(self, point_head: ConfigType, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         assert self.with_bbox and self.with_mask
         self.init_point_head(point_head)
 
-    def init_point_head(self, point_head):
+    def init_point_head(self, point_head: ConfigType) -> None:
         """Initialize ``point_head``"""
-        self.point_head = builder.build_head(point_head)
+        self.point_head = MODELS.build(point_head)
 
-    def init_weights(self, pretrained):
-        """Initialize the weights in head.
-
-        Args:
-            pretrained (str, optional): Path to pre-trained weights.
-        """
-        super().init_weights(pretrained)
-        self.point_head.init_weights()
-
-    def _mask_forward_train(self, x, sampling_results, bbox_feats, gt_masks,
-                            img_metas):
+    def mask_loss(self, x: Tuple[Tensor],
+                  sampling_results: List[SamplingResult], bbox_feats: Tensor,
+                  batch_gt_instances: InstanceList) -> dict:
         """Run forward function and calculate loss for mask head and point head
         in training."""
-        mask_results = super()._mask_forward_train(x, sampling_results,
-                                                   bbox_feats, gt_masks,
-                                                   img_metas)
-        if mask_results['loss_mask'] is not None:
-            loss_point = self._mask_point_forward_train(
-                x, sampling_results, mask_results['mask_pred'], gt_masks,
-                img_metas)
-            mask_results['loss_mask'].update(loss_point)
+        mask_results = super().mask_loss(
+            x=x,
+            sampling_results=sampling_results,
+            bbox_feats=bbox_feats,
+            batch_gt_instances=batch_gt_instances)
+
+        mask_point_results = self._mask_point_loss(
+            x=x,
+            sampling_results=sampling_results,
+            mask_preds=mask_results['mask_preds'],
+            batch_gt_instances=batch_gt_instances)
+        mask_results['loss_mask'].update(
+            loss_point=mask_point_results['loss_point'])
 
         return mask_results
 
-    def _mask_point_forward_train(self, x, sampling_results, mask_pred,
-                                  gt_masks, img_metas):
+    def _mask_point_loss(self, x: Tuple[Tensor],
+                         sampling_results: List[SamplingResult],
+                         mask_preds: Tensor,
+                         batch_gt_instances: InstanceList) -> dict:
         """Run forward function and calculate loss for point head in
         training."""
         pos_labels = torch.cat([res.pos_gt_labels for res in sampling_results])
         rel_roi_points = self.point_head.get_roi_rel_points_train(
-            mask_pred, pos_labels, cfg=self.train_cfg)
+            mask_preds, pos_labels, cfg=self.train_cfg)
         rois = bbox2roi([res.pos_bboxes for res in sampling_results])
 
         fine_grained_point_feats = self._get_fine_grained_point_feats(
-            x, rois, rel_roi_points, img_metas)
-        coarse_point_feats = point_sample(mask_pred, rel_roi_points)
+            x, rois, rel_roi_points)
+        coarse_point_feats = point_sample(mask_preds, rel_roi_points)
         mask_point_pred = self.point_head(fine_grained_point_feats,
                                           coarse_point_feats)
-        mask_point_target = self.point_head.get_targets(
-            rois, rel_roi_points, sampling_results, gt_masks, self.train_cfg)
-        loss_mask_point = self.point_head.loss(mask_point_pred,
-                                               mask_point_target, pos_labels)
 
-        return loss_mask_point
+        loss_and_target = self.point_head.loss_and_target(
+            point_pred=mask_point_pred,
+            rel_roi_points=rel_roi_points,
+            sampling_results=sampling_results,
+            batch_gt_instances=batch_gt_instances,
+            cfg=self.train_cfg)
 
-    def _get_fine_grained_point_feats(self, x, rois, rel_roi_points,
-                                      img_metas):
-        """Sample fine grained feats from each level feature map and
-        concatenate them together."""
-        num_imgs = len(img_metas)
-        fine_grained_feats = []
-        for idx in range(self.mask_roi_extractor.num_inputs):
-            feats = x[idx]
-            spatial_scale = 1. / float(
-                self.mask_roi_extractor.featmap_strides[idx])
-            point_feats = []
-            for batch_ind in range(num_imgs):
-                # unravel batch dim
-                feat = feats[batch_ind].unsqueeze(0)
-                inds = (rois[:, 0].long() == batch_ind)
-                if inds.any():
-                    rel_img_points = rel_roi_point_to_rel_img_point(
-                        rois[inds], rel_roi_points[inds], feat.shape[2:],
-                        spatial_scale).unsqueeze(0)
-                    point_feat = point_sample(feat, rel_img_points)
-                    point_feat = point_feat.squeeze(0).transpose(0, 1)
-                    point_feats.append(point_feat)
-            fine_grained_feats.append(torch.cat(point_feats, dim=0))
-        return torch.cat(fine_grained_feats, dim=1)
+        return loss_and_target
 
-    def _mask_point_forward_test(self, x, rois, label_pred, mask_pred,
-                                 img_metas):
-        """Mask refining process with point head in testing."""
-        refined_mask_pred = mask_pred.clone()
+    def _mask_point_forward_test(self, x: Tuple[Tensor], rois: Tensor,
+                                 label_preds: Tensor,
+                                 mask_preds: Tensor) -> Tensor:
+        """Mask refining process with point head in testing.
+
+        Args:
+            x (tuple[Tensor]): Feature maps of all scale level.
+            rois (Tensor): shape (num_rois, 5).
+            label_preds (Tensor): The predication class for each rois.
+            mask_preds (Tensor): The predication coarse masks of
+                shape (num_rois, num_classes, small_size, small_size).
+
+        Returns:
+            Tensor: The refined masks of shape (num_rois, num_classes,
+            large_size, large_size).
+        """
+        refined_mask_pred = mask_preds.clone()
         for subdivision_step in range(self.test_cfg.subdivision_steps):
             refined_mask_pred = F.interpolate(
                 refined_mask_pred,
@@ -114,10 +109,11 @@ class PointRendRoIHead(StandardRoIHead):
                 continue
             point_indices, rel_roi_points = \
                 self.point_head.get_roi_rel_points_test(
-                    refined_mask_pred, label_pred, cfg=self.test_cfg)
+                    refined_mask_pred, label_preds, cfg=self.test_cfg)
+
             fine_grained_point_feats = self._get_fine_grained_point_feats(
-                x, rois, rel_roi_points, img_metas)
-            coarse_point_feats = point_sample(mask_pred, rel_roi_points)
+                x=x, rois=rois, rel_roi_points=rel_roi_points)
+            coarse_point_feats = point_sample(mask_preds, rel_roi_points)
             mask_point_pred = self.point_head(fine_grained_point_feats,
                                               coarse_point_feats)
 
@@ -131,88 +127,110 @@ class PointRendRoIHead(StandardRoIHead):
 
         return refined_mask_pred
 
-    def simple_test_mask(self,
-                         x,
-                         img_metas,
-                         det_bboxes,
-                         det_labels,
-                         rescale=False):
-        """Obtain mask prediction without augmentation."""
-        ori_shapes = tuple(meta['ori_shape'] for meta in img_metas)
-        scale_factors = tuple(meta['scale_factor'] for meta in img_metas)
-        num_imgs = len(det_bboxes)
-        if all(det_bbox.shape[0] == 0 for det_bbox in det_bboxes):
-            segm_results = [[[] for _ in range(self.mask_head.num_classes)]
-                            for _ in range(num_imgs)]
-        else:
-            # if det_bboxes is rescaled to the original image size, we need to
-            # rescale it back to the testing scale to obtain RoIs.
-            if rescale and not isinstance(scale_factors[0], float):
-                scale_factors = [
-                    torch.from_numpy(scale_factor).to(det_bboxes[0].device)
-                    for scale_factor in scale_factors
-                ]
-            _bboxes = [
-                det_bboxes[i][:, :4] *
-                scale_factors[i] if rescale else det_bboxes[i][:, :4]
-                for i in range(len(det_bboxes))
-            ]
-            mask_rois = bbox2roi(_bboxes)
-            mask_results = self._mask_forward(x, mask_rois)
-            # split batch mask prediction back to each image
-            mask_pred = mask_results['mask_pred']
-            num_mask_roi_per_img = [len(det_bbox) for det_bbox in det_bboxes]
-            mask_preds = mask_pred.split(num_mask_roi_per_img, 0)
-            mask_rois = mask_rois.split(num_mask_roi_per_img, 0)
+    def _get_fine_grained_point_feats(self, x: Tuple[Tensor], rois: Tensor,
+                                      rel_roi_points: Tensor) -> Tensor:
+        """Sample fine grained feats from each level feature map and
+        concatenate them together.
 
-            # apply mask post-processing to each image individually
-            segm_results = []
-            for i in range(num_imgs):
-                if det_bboxes[i].shape[0] == 0:
-                    segm_results.append(
-                        [[] for _ in range(self.mask_head.num_classes)])
-                else:
-                    x_i = [xx[[i]] for xx in x]
-                    mask_rois_i = mask_rois[i]
-                    mask_rois_i[:, 0] = 0  # TODO: remove this hack
-                    mask_pred_i = self._mask_point_forward_test(
-                        x_i, mask_rois_i, det_labels[i], mask_preds[i],
-                        [img_metas])
-                    segm_result = self.mask_head.get_seg_masks(
-                        mask_pred_i, _bboxes[i], det_labels[i], self.test_cfg,
-                        ori_shapes[i], scale_factors[i], rescale)
-                    segm_results.append(segm_result)
-        return segm_results
+        Args:
+            x (tuple[Tensor]): Feature maps of all scale level.
+            rois (Tensor): shape (num_rois, 5).
+            rel_roi_points (Tensor): A tensor of shape (num_rois, num_points,
+                2) that contains [0, 1] x [0, 1] normalized coordinates of the
+                most uncertain points from the [mask_height, mask_width] grid.
 
-    def aug_test_mask(self, feats, img_metas, det_bboxes, det_labels):
-        """Test for mask head with test time augmentation."""
-        if det_bboxes.shape[0] == 0:
-            segm_result = [[] for _ in range(self.mask_head.num_classes)]
-        else:
-            aug_masks = []
-            for x, img_meta in zip(feats, img_metas):
-                img_shape = img_meta[0]['img_shape']
-                scale_factor = img_meta[0]['scale_factor']
-                flip = img_meta[0]['flip']
-                _bboxes = bbox_mapping(det_bboxes[:, :4], img_shape,
-                                       scale_factor, flip)
-                mask_rois = bbox2roi([_bboxes])
-                mask_results = self._mask_forward(x, mask_rois)
-                mask_results['mask_pred'] = self._mask_point_forward_test(
-                    x, mask_rois, det_labels, mask_results['mask_pred'],
-                    img_metas)
-                # convert to numpy array to save memory
-                aug_masks.append(
-                    mask_results['mask_pred'].sigmoid().cpu().numpy())
-            merged_masks = merge_aug_masks(aug_masks, img_metas, self.test_cfg)
+        Returns:
+            Tensor: The fine grained features for each points,
+            has shape (num_rois, feats_channels, num_points).
+        """
+        assert rois.shape[0] > 0, 'RoI is a empty tensor.'
+        num_imgs = x[0].shape[0]
+        fine_grained_feats = []
+        for idx in range(self.mask_roi_extractor.num_inputs):
+            feats = x[idx]
+            spatial_scale = 1. / float(
+                self.mask_roi_extractor.featmap_strides[idx])
+            point_feats = []
+            for batch_ind in range(num_imgs):
+                # unravel batch dim
+                feat = feats[batch_ind].unsqueeze(0)
+                inds = (rois[:, 0].long() == batch_ind)
+                if inds.any():
+                    rel_img_points = rel_roi_point_to_rel_img_point(
+                        rois=rois[inds],
+                        rel_roi_points=rel_roi_points[inds],
+                        img=feat.shape[2:],
+                        spatial_scale=spatial_scale).unsqueeze(0)
+                    point_feat = point_sample(feat, rel_img_points)
+                    point_feat = point_feat.squeeze(0).transpose(0, 1)
+                    point_feats.append(point_feat)
+            fine_grained_feats.append(torch.cat(point_feats, dim=0))
+        return torch.cat(fine_grained_feats, dim=1)
 
-            ori_shape = img_metas[0][0]['ori_shape']
-            segm_result = self.mask_head.get_seg_masks(
-                merged_masks,
-                det_bboxes,
-                det_labels,
-                self.test_cfg,
-                ori_shape,
-                scale_factor=1.0,
-                rescale=False)
-        return segm_result
+    def predict_mask(self,
+                     x: Tuple[Tensor],
+                     batch_img_metas: List[dict],
+                     results_list: InstanceList,
+                     rescale: bool = False) -> InstanceList:
+        """Perform forward propagation of the mask head and predict detection
+        results on the features of the upstream network.
+
+        Args:
+            x (tuple[Tensor]): Feature maps of all scale level.
+            batch_img_metas (list[dict]): List of image information.
+            results_list (list[:obj:`InstanceData`]): Detection results of
+                each image.
+            rescale (bool): If True, return boxes in original image space.
+                Defaults to False.
+
+        Returns:
+            list[:obj:`InstanceData`]: Detection results of each image
+            after the post process.
+            Each item usually contains following keys.
+
+            - scores (Tensor): Classification scores, has a shape
+              (num_instance, )
+            - labels (Tensor): Labels of bboxes, has a shape
+              (num_instances, ).
+            - bboxes (Tensor): Has a shape (num_instances, 4),
+              the last dimension 4 arrange as (x1, y1, x2, y2).
+            - masks (Tensor): Has a shape (num_instances, H, W).
+        """
+        # don't need to consider aug_test.
+        bboxes = [res.bboxes for res in results_list]
+        mask_rois = bbox2roi(bboxes)
+        if mask_rois.shape[0] == 0:
+            results_list = empty_instances(
+                batch_img_metas,
+                mask_rois.device,
+                task_type='mask',
+                instance_results=results_list,
+                mask_thr_binary=self.test_cfg.mask_thr_binary)
+            return results_list
+
+        mask_results = self._mask_forward(x, mask_rois)
+        mask_preds = mask_results['mask_preds']
+        # split batch mask prediction back to each image
+        num_mask_rois_per_img = [len(res) for res in results_list]
+        mask_preds = mask_preds.split(num_mask_rois_per_img, 0)
+
+        # refine mask_preds
+        mask_rois = mask_rois.split(num_mask_rois_per_img, 0)
+        mask_preds_refined = []
+        for i in range(len(batch_img_metas)):
+            labels = results_list[i].labels
+            x_i = [xx[[i]] for xx in x]
+            mask_rois_i = mask_rois[i]
+            mask_rois_i[:, 0] = 0
+            mask_pred_i = self._mask_point_forward_test(
+                x_i, mask_rois_i, labels, mask_preds[i])
+            mask_preds_refined.append(mask_pred_i)
+
+        # TODO: Handle the case where rescale is false
+        results_list = self.mask_head.predict_by_feat(
+            mask_preds=mask_preds_refined,
+            results_list=results_list,
+            batch_img_metas=batch_img_metas,
+            rcnn_test_cfg=self.test_cfg,
+            rescale=rescale)
+        return results_list

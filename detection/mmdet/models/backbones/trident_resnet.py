@@ -1,15 +1,17 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as cp
-from mmcv.cnn import build_conv_layer, build_norm_layer, kaiming_init
+from mmcv.cnn import build_conv_layer, build_norm_layer
+from mmengine.model import BaseModule
 from torch.nn.modules.utils import _pair
 
 from mmdet.models.backbones.resnet import Bottleneck, ResNet
-from mmdet.models.builder import BACKBONES
+from mmdet.registry import MODELS
 
 
-class TridentConv(nn.Module):
+class TridentConv(BaseModule):
     """Trident Convolution Module.
 
     Args:
@@ -24,6 +26,8 @@ class TridentConv(nn.Module):
             index `test_branch_idx` will be used. Default: 1.
         bias (bool, optional): Whether to use bias in convolution or not.
             Default: False.
+        init_cfg (dict or list[dict], optional): Initialization config dict.
+            Default: None
     """
 
     def __init__(self,
@@ -33,8 +37,9 @@ class TridentConv(nn.Module):
                  stride=1,
                  trident_dilations=(1, 2, 3),
                  test_branch_idx=1,
-                 bias=False):
-        super(TridentConv, self).__init__()
+                 bias=False,
+                 init_cfg=None):
+        super(TridentConv, self).__init__(init_cfg)
         self.num_branch = len(trident_dilations)
         self.with_bias = bias
         self.test_branch_idx = test_branch_idx
@@ -52,10 +57,6 @@ class TridentConv(nn.Module):
             self.bias = nn.Parameter(torch.Tensor(out_channels))
         else:
             self.bias = None
-        self.init_weights()
-
-    def init_weights(self):
-        kaiming_init(self, distribution='uniform', mode='fan_in')
 
     def extra_repr(self):
         tmpstr = f'in_channels={self.in_channels}'
@@ -117,7 +118,12 @@ class TridentBottleneck(Bottleneck):
             stride=self.conv2_stride,
             bias=False,
             trident_dilations=self.trident_dilations,
-            test_branch_idx=test_branch_idx)
+            test_branch_idx=test_branch_idx,
+            init_cfg=dict(
+                type='Kaiming',
+                distribution='uniform',
+                mode='fan_in',
+                override=dict(name='conv2')))
 
     def forward(self, x):
 
@@ -225,7 +231,7 @@ def make_trident_res_layer(block,
     return nn.Sequential(*layers)
 
 
-@BACKBONES.register_module()
+@MODELS.register_module()
 class TridentResNet(ResNet):
     """The stem layer, stage 1 and stage 2 in Trident ResNet are identical to
     ResNet, while in stage 3, Trident BottleBlock is utilized to replace the

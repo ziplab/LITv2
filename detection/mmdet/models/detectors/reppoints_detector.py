@@ -1,8 +1,10 @@
-from ..builder import DETECTORS
+# Copyright (c) OpenMMLab. All rights reserved.
+from mmdet.registry import MODELS
+from mmdet.utils import ConfigType, OptConfigType, OptMultiConfig
 from .single_stage import SingleStageDetector
 
 
-@DETECTORS.register_module()
+@MODELS.register_module()
 class RepPointsDetector(SingleStageDetector):
     """RepPoints: Point Set Representation for Object Detection.
 
@@ -11,12 +13,18 @@ class RepPointsDetector(SingleStageDetector):
     """
 
     def __init__(self,
-                 backbone,
-                 neck,
-                 bbox_head,
-                 train_cfg=None,
-                 test_cfg=None,
-                 pretrained=None):
-        super(RepPointsDetector,
-              self).__init__(backbone, neck, bbox_head, train_cfg, test_cfg,
-                             pretrained)
+                 backbone: ConfigType,
+                 neck: ConfigType,
+                 bbox_head: ConfigType,
+                 train_cfg: OptConfigType = None,
+                 test_cfg: OptConfigType = None,
+                 data_preprocessor: OptConfigType = None,
+                 init_cfg: OptMultiConfig = None):
+        super().__init__(
+            backbone=backbone,
+            neck=neck,
+            bbox_head=bbox_head,
+            train_cfg=train_cfg,
+            test_cfg=test_cfg,
+            data_preprocessor=data_preprocessor,
+            init_cfg=init_cfg)

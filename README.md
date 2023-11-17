@@ -8,6 +8,8 @@ By [Zizheng Pan](https://scholar.google.com.au/citations?user=w_VMopoAAAAJ&hl=en
 
 ## News
 
+- **17/11/2023**. Update detection scripts with mmdet v3.2.0.
+
 - **20/04/2023**. Update training scripts with PyTorch 2.0. Support ONNX and TensorRT model conversion, see [here](https://github.com/ziplab/LITv2/blob/main/classification/README.md#onnx-and-tensorrt-model-conversion).
 
 - **15/12/2022**. Releasing ImageNet pretrained weights of using different values of alpha.

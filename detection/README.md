@@ -29,30 +29,31 @@
 ## Training
 
 ```bash
-bash tools/dist_train.sh  <CONFIG_FILE> <GPU_NUM> --cfg-options model.pretrained=<PRETRAIN_MODEL> [model.backbone.use_checkpoint=True] [other optional arguments] 
+bash tools/dist_train.sh  <CONFIG_FILE> <GPU_NUM> 
 ```
 
-For example, you can train LITv2-S with 8 GPUs by
+For example, you can train LITv2-S with 1 GPU by
 
 ```
-bash tools/dist_train.sh configs/litv2/retinanet_litv2_s_fpn_1x_coco.py 8 --cfg-options model.pretrained=litv2_s.pth
+bash tools/dist_train.sh configs/litv2/retinanet_litv2_s_fpn_1x_coco.py 1
 ```
 
 ## Inference
 
 ```bash
 # multi-gpu testing
-tools/dist_test.sh <CONFIG_FILE> <DET_CHECKPOINT_FILE> <GPU_NUM> --eval bbox segm
+tools/dist_test.sh <CONFIG_FILE> <DET_CHECKPOINT_FILE> <GPU_NUM> 
 
 # single-gpu testing
-python tools/test.py <CONFIG_FILE> <DET_CHECKPOINT_FILE> --eval bbox segm
+python tools/test.py <CONFIG_FILE> <DET_CHECKPOINT_FILE>
 ```
 
 For example, you can test LITv2-S with RetinaNet on 8 GPUs by 
 
 ```bash
-bash tools/dist_test.sh configs/litv2/retinanet_litv2_s_fpn_1x_coco.py retinanet_litv2_s_fpn_1x_coco.pth 8 --eval bbox
+bash tools/dist_test.sh configs/litv2/retinanet_litv2_s_fpn_1x_coco.py retinanet_litv2_s_fpn_1x_coco.pth 8
 ```
+
 
 
 ## Benchmark
@@ -60,7 +61,7 @@ bash tools/dist_test.sh configs/litv2/retinanet_litv2_s_fpn_1x_coco.py retinanet
 To get the FLOPs, run
 
 ```bash
-python tools/get_flops.py configs/litv2/retinanet_litv2_s_fpn_1x_coco.py
+python tools/analysis_tools/get_flops.py configs/litv2/retinanet_litv2_s_fpn_1x_coco.py
 ```
 
 This should give
@@ -71,12 +72,15 @@ Flops: 242.39 GFLOPs
 Params: 38.01 M
 ```
 
+
+
+
+
 To test the FPS, run
 
 ```bash
-python -m torch.distributed.launch --nproc_per_node=1 --master_port=29500 tools/benchmark.py \
+python -m torch.distributed.launch --nproc_per_node=1 --master_port=29500 tools/analysis_tools/benchmark.py \
        configs/litv2/retinanet_litv2_s_fpn_1x_coco.py \
-       --checkpoint retinanet_litv2_s_fpn_1x_coco.pth \
        --launcher pytorch
 ```
 

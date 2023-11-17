@@ -1,12 +1,18 @@
-import torch
-import torch.nn as nn
+# Copyright (c) OpenMMLab. All rights reserved.
+import copy
+import warnings
+from typing import List, Tuple, Union
 
-# from mmdet.core import bbox2result, bbox2roi, build_assigner, build_sampler
-from ..builder import DETECTORS, build_backbone, build_head, build_neck
+import torch
+from torch import Tensor
+
+from mmdet.registry import MODELS
+from mmdet.structures import SampleList
+from mmdet.utils import ConfigType, OptConfigType, OptMultiConfig
 from .base import BaseDetector
 
 
-@DETECTORS.register_module()
+@MODELS.register_module()
 class TwoStageDetector(BaseDetector):
     """Base class for two-stage detectors.
 
@@ -15,24 +21,36 @@ class TwoStageDetector(BaseDetector):
     """
 
     def __init__(self,
-                 backbone,
-                 neck=None,
-                 rpn_head=None,
-                 roi_head=None,
-                 train_cfg=None,
-                 test_cfg=None,
-                 pretrained=None):
-        super(TwoStageDetector, self).__init__()
-        self.backbone = build_backbone(backbone)
+                 backbone: ConfigType,
+                 neck: OptConfigType = None,
+                 rpn_head: OptConfigType = None,
+                 roi_head: OptConfigType = None,
+                 train_cfg: OptConfigType = None,
+                 test_cfg: OptConfigType = None,
+                 data_preprocessor: OptConfigType = None,
+                 init_cfg: OptMultiConfig = None) -> None:
+        super().__init__(
+            data_preprocessor=data_preprocessor, init_cfg=init_cfg)
+        self.backbone = MODELS.build(backbone)
 
         if neck is not None:
-            self.neck = build_neck(neck)
+            self.neck = MODELS.build(neck)
 
         if rpn_head is not None:
             rpn_train_cfg = train_cfg.rpn if train_cfg is not None else None
             rpn_head_ = rpn_head.copy()
             rpn_head_.update(train_cfg=rpn_train_cfg, test_cfg=test_cfg.rpn)
-            self.rpn_head = build_head(rpn_head_)
+            rpn_head_num_classes = rpn_head_.get('num_classes', None)
+            if rpn_head_num_classes is None:
+                rpn_head_.update(num_classes=1)
+            else:
+                if rpn_head_num_classes != 1:
+                    warnings.warn(
+                        'The `num_classes` should be 1 in RPN, but get '
+                        f'{rpn_head_num_classes}, please set '
+                        'rpn_head.num_classes = 1 in your config file.')
+                    rpn_head_.update(num_classes=1)
+            self.rpn_head = MODELS.build(rpn_head_)
 
         if roi_head is not None:
             # update train and test cfg here for now
@@ -40,106 +58,106 @@ class TwoStageDetector(BaseDetector):
             rcnn_train_cfg = train_cfg.rcnn if train_cfg is not None else None
             roi_head.update(train_cfg=rcnn_train_cfg)
             roi_head.update(test_cfg=test_cfg.rcnn)
-            self.roi_head = build_head(roi_head)
+            self.roi_head = MODELS.build(roi_head)
 
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
 
-        self.init_weights(pretrained=pretrained)
+    def _load_from_state_dict(self, state_dict: dict, prefix: str,
+                              local_metadata: dict, strict: bool,
+                              missing_keys: Union[List[str], str],
+                              unexpected_keys: Union[List[str], str],
+                              error_msgs: Union[List[str], str]) -> None:
+        """Exchange bbox_head key to rpn_head key when loading single-stage
+        weights into two-stage model."""
+        bbox_head_prefix = prefix + '.bbox_head' if prefix else 'bbox_head'
+        bbox_head_keys = [
+            k for k in state_dict.keys() if k.startswith(bbox_head_prefix)
+        ]
+        rpn_head_prefix = prefix + '.rpn_head' if prefix else 'rpn_head'
+        rpn_head_keys = [
+            k for k in state_dict.keys() if k.startswith(rpn_head_prefix)
+        ]
+        if len(bbox_head_keys) != 0 and len(rpn_head_keys) == 0:
+            for bbox_head_key in bbox_head_keys:
+                rpn_head_key = rpn_head_prefix + \
+                               bbox_head_key[len(bbox_head_prefix):]
+                state_dict[rpn_head_key] = state_dict.pop(bbox_head_key)
+        super()._load_from_state_dict(state_dict, prefix, local_metadata,
+                                      strict, missing_keys, unexpected_keys,
+                                      error_msgs)
 
     @property
-    def with_rpn(self):
+    def with_rpn(self) -> bool:
         """bool: whether the detector has RPN"""
         return hasattr(self, 'rpn_head') and self.rpn_head is not None
 
     @property
-    def with_roi_head(self):
+    def with_roi_head(self) -> bool:
         """bool: whether the detector has a RoI head"""
         return hasattr(self, 'roi_head') and self.roi_head is not None
 
-    def init_weights(self, pretrained=None):
-        """Initialize the weights in detector.
+    def extract_feat(self, batch_inputs: Tensor) -> Tuple[Tensor]:
+        """Extract features.
 
         Args:
-            pretrained (str, optional): Path to pre-trained weights.
-                Defaults to None.
-        """
-        super(TwoStageDetector, self).init_weights(pretrained)
-        self.backbone.init_weights(pretrained=pretrained)
-        if self.with_neck:
-            if isinstance(self.neck, nn.Sequential):
-                for m in self.neck:
-                    m.init_weights()
-            else:
-                self.neck.init_weights()
-        if self.with_rpn:
-            self.rpn_head.init_weights()
-        if self.with_roi_head:
-            self.roi_head.init_weights(pretrained)
+            batch_inputs (Tensor): Image tensor with shape (N, C, H ,W).
 
-    def extract_feat(self, img):
-        """Directly extract features from the backbone+neck."""
-        x = self.backbone(img)
+        Returns:
+            tuple[Tensor]: Multi-level features that may have
+            different resolutions.
+        """
+        x = self.backbone(batch_inputs)
         if self.with_neck:
             x = self.neck(x)
         return x
 
-    def forward_dummy(self, img):
-        """Used for computing network flops.
+    def _forward(self, batch_inputs: Tensor,
+                 batch_data_samples: SampleList) -> tuple:
+        """Network forward process. Usually includes backbone, neck and head
+        forward without any post-processing.
 
-        See `mmdetection/tools/analysis_tools/get_flops.py`
-        """
-        outs = ()
-        # backbone
-        x = self.extract_feat(img)
-        # rpn
-        if self.with_rpn:
-            rpn_outs = self.rpn_head(x)
-            outs = outs + (rpn_outs, )
-        proposals = torch.randn(1000, 4).to(img.device)
-        # roi_head
-        roi_outs = self.roi_head.forward_dummy(x, proposals)
-        outs = outs + (roi_outs, )
-        return outs
-
-    def forward_train(self,
-                      img,
-                      img_metas,
-                      gt_bboxes,
-                      gt_labels,
-                      gt_bboxes_ignore=None,
-                      gt_masks=None,
-                      proposals=None,
-                      **kwargs):
-        """
         Args:
-            img (Tensor): of shape (N, C, H, W) encoding input images.
-                Typically these should be mean centered and std scaled.
-
-            img_metas (list[dict]): list of image info dict where each dict
-                has: 'img_shape', 'scale_factor', 'flip', and may also contain
-                'filename', 'ori_shape', 'pad_shape', and 'img_norm_cfg'.
-                For details on the values of these keys see
-                `mmdet/datasets/pipelines/formatting.py:Collect`.
-
-            gt_bboxes (list[Tensor]): Ground truth bboxes for each image with
-                shape (num_gts, 4) in [tl_x, tl_y, br_x, br_y] format.
-
-            gt_labels (list[Tensor]): class indices corresponding to each box
-
-            gt_bboxes_ignore (None | list[Tensor]): specify which bounding
-                boxes can be ignored when computing the loss.
-
-            gt_masks (None | Tensor) : true segmentation masks for each box
-                used if the architecture supports a segmentation task.
-
-            proposals : override rpn proposals with custom proposals. Use when
-                `with_rpn` is False.
+            batch_inputs (Tensor): Inputs with shape (N, C, H, W).
+            batch_data_samples (list[:obj:`DetDataSample`]): Each item contains
+                the meta information of each image and corresponding
+                annotations.
 
         Returns:
-            dict[str, Tensor]: a dictionary of loss components
+            tuple: A tuple of features from ``rpn_head`` and ``roi_head``
+            forward.
         """
-        x = self.extract_feat(img)
+        results = ()
+        x = self.extract_feat(batch_inputs)
+
+        if self.with_rpn:
+            rpn_results_list = self.rpn_head.predict(
+                x, batch_data_samples, rescale=False)
+        else:
+            assert batch_data_samples[0].get('proposals', None) is not None
+            rpn_results_list = [
+                data_sample.proposals for data_sample in batch_data_samples
+            ]
+        roi_outs = self.roi_head.forward(x, rpn_results_list,
+                                         batch_data_samples)
+        results = results + (roi_outs, )
+        return results
+
+    def loss(self, batch_inputs: Tensor,
+             batch_data_samples: SampleList) -> dict:
+        """Calculate losses from a batch of inputs and data samples.
+
+        Args:
+            batch_inputs (Tensor): Input images of shape (N, C, H, W).
+                These should usually be mean centered and std scaled.
+            batch_data_samples (List[:obj:`DetDataSample`]): The batch
+                data samples. It usually includes information such
+                as `gt_instance` or `gt_panoptic_seg` or `gt_sem_seg`.
+
+        Returns:
+            dict: A dictionary of loss components
+        """
+        x = self.extract_feat(batch_inputs)
 
         losses = dict()
 
@@ -147,69 +165,79 @@ class TwoStageDetector(BaseDetector):
         if self.with_rpn:
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
-            rpn_losses, proposal_list = self.rpn_head.forward_train(
-                x,
-                img_metas,
-                gt_bboxes,
-                gt_labels=None,
-                gt_bboxes_ignore=gt_bboxes_ignore,
-                proposal_cfg=proposal_cfg)
+            rpn_data_samples = copy.deepcopy(batch_data_samples)
+            # set cat_id of gt_labels to 0 in RPN
+            for data_sample in rpn_data_samples:
+                data_sample.gt_instances.labels = \
+                    torch.zeros_like(data_sample.gt_instances.labels)
+
+            rpn_losses, rpn_results_list = self.rpn_head.loss_and_predict(
+                x, rpn_data_samples, proposal_cfg=proposal_cfg)
+            # avoid get same name with roi_head loss
+            keys = rpn_losses.keys()
+            for key in list(keys):
+                if 'loss' in key and 'rpn' not in key:
+                    rpn_losses[f'rpn_{key}'] = rpn_losses.pop(key)
             losses.update(rpn_losses)
         else:
-            proposal_list = proposals
+            assert batch_data_samples[0].get('proposals', None) is not None
+            # use pre-defined proposals in InstanceData for the second stage
+            # to extract ROI features.
+            rpn_results_list = [
+                data_sample.proposals for data_sample in batch_data_samples
+            ]
 
-        roi_losses = self.roi_head.forward_train(x, img_metas, proposal_list,
-                                                 gt_bboxes, gt_labels,
-                                                 gt_bboxes_ignore, gt_masks,
-                                                 **kwargs)
+        roi_losses = self.roi_head.loss(x, rpn_results_list,
+                                        batch_data_samples)
         losses.update(roi_losses)
 
         return losses
 
-    async def async_simple_test(self,
-                                img,
-                                img_meta,
-                                proposals=None,
-                                rescale=False):
-        """Async test without augmentation."""
-        assert self.with_bbox, 'Bbox head must be implemented.'
-        x = self.extract_feat(img)
+    def predict(self,
+                batch_inputs: Tensor,
+                batch_data_samples: SampleList,
+                rescale: bool = True) -> SampleList:
+        """Predict results from a batch of inputs and data samples with post-
+        processing.
 
-        if proposals is None:
-            proposal_list = await self.rpn_head.async_simple_test_rpn(
-                x, img_meta)
-        else:
-            proposal_list = proposals
+        Args:
+            batch_inputs (Tensor): Inputs with shape (N, C, H, W).
+            batch_data_samples (List[:obj:`DetDataSample`]): The Data
+                Samples. It usually includes information such as
+                `gt_instance`, `gt_panoptic_seg` and `gt_sem_seg`.
+            rescale (bool): Whether to rescale the results.
+                Defaults to True.
 
-        return await self.roi_head.async_simple_test(
-            x, proposal_list, img_meta, rescale=rescale)
+        Returns:
+            list[:obj:`DetDataSample`]: Return the detection results of the
+            input images. The returns value is DetDataSample,
+            which usually contain 'pred_instances'. And the
+            ``pred_instances`` usually contains following keys.
 
-    def simple_test(self, img, img_metas, proposals=None, rescale=False):
-        """Test without augmentation."""
-        assert self.with_bbox, 'Bbox head must be implemented.'
-
-        x = self.extract_feat(img)
-
-        # get origin input shape to onnx dynamic input shape
-        if torch.onnx.is_in_onnx_export():
-            img_shape = torch._shape_as_tensor(img)[2:]
-            img_metas[0]['img_shape_for_onnx'] = img_shape
-
-        if proposals is None:
-            proposal_list = self.rpn_head.simple_test_rpn(x, img_metas)
-        else:
-            proposal_list = proposals
-
-        return self.roi_head.simple_test(
-            x, proposal_list, img_metas, rescale=rescale)
-
-    def aug_test(self, imgs, img_metas, rescale=False):
-        """Test with augmentations.
-
-        If rescale is False, then returned bboxes and masks will fit the scale
-        of imgs[0].
+                - scores (Tensor): Classification scores, has a shape
+                    (num_instance, )
+                - labels (Tensor): Labels of bboxes, has a shape
+                    (num_instances, ).
+                - bboxes (Tensor): Has a shape (num_instances, 4),
+                    the last dimension 4 arrange as (x1, y1, x2, y2).
+                - masks (Tensor): Has a shape (num_instances, H, W).
         """
-        x = self.extract_feats(imgs)
-        proposal_list = self.rpn_head.aug_test_rpn(x, img_metas)
-        return self.roi_head.aug_test(
-            x, proposal_list, img_metas, rescale=rescale)
+
+        assert self.with_bbox, 'Bbox head must be implemented.'
+        x = self.extract_feat(batch_inputs)
+
+        # If there are no pre-defined proposals, use RPN to get proposals
+        if batch_data_samples[0].get('proposals', None) is None:
+            rpn_results_list = self.rpn_head.predict(
+                x, batch_data_samples, rescale=False)
+        else:
+            rpn_results_list = [
+                data_sample.proposals for data_sample in batch_data_samples
+            ]
+
+        results_list = self.roi_head.predict(
+            x, rpn_results_list, batch_data_samples, rescale=rescale)
+
+        batch_data_samples = self.add_pred_to_datasample(
+            batch_data_samples, results_list)
+        return batch_data_samples

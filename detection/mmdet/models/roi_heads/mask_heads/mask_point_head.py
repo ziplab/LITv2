@@ -1,15 +1,26 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 # Modified from https://github.com/facebookresearch/detectron2/tree/master/projects/PointRend/point_head/point_head.py  # noqa
+
+from typing import List, Tuple
 
 import torch
 import torch.nn as nn
-from mmcv.cnn import ConvModule, normal_init
+from mmcv.cnn import ConvModule
 from mmcv.ops import point_sample, rel_roi_point_to_rel_img_point
+from mmengine.model import BaseModule
+from mmengine.structures import InstanceData
+from torch import Tensor
 
-from mmdet.models.builder import HEADS, build_loss
+from mmdet.models.task_modules.samplers import SamplingResult
+from mmdet.models.utils import (get_uncertain_point_coords_with_randomness,
+                                get_uncertainty)
+from mmdet.registry import MODELS
+from mmdet.structures.bbox import bbox2roi
+from mmdet.utils import ConfigType, InstanceList, MultiConfig, OptConfigType
 
 
-@HEADS.register_module()
-class MaskPointHead(nn.Module):
+@MODELS.register_module()
+class MaskPointHead(BaseModule):
     """A mask point head use in PointRend.
 
     ``MaskPointHead`` use shared multi-layer perceptron (equivalent to
@@ -17,36 +28,42 @@ class MaskPointHead(nn.Module):
     and coarse feature will be concatenate together for predication.
 
     Args:
-        num_fcs (int): Number of fc layers in the head. Default: 3.
-        in_channels (int): Number of input channels. Default: 256.
-        fc_channels (int): Number of fc channels. Default: 256.
-        num_classes (int): Number of classes for logits. Default: 80.
+        num_fcs (int): Number of fc layers in the head. Defaults to 3.
+        in_channels (int): Number of input channels. Defaults to 256.
+        fc_channels (int): Number of fc channels. Defaults to 256.
+        num_classes (int): Number of classes for logits. Defaults to 80.
         class_agnostic (bool): Whether use class agnostic classification.
-            If so, the output channels of logits will be 1. Default: False.
+            If so, the output channels of logits will be 1. Defaults to False.
         coarse_pred_each_layer (bool): Whether concatenate coarse feature with
-            the output of each fc layer. Default: True.
-        conv_cfg (dict | None): Dictionary to construct and config conv layer.
-            Default: dict(type='Conv1d'))
-        norm_cfg (dict | None): Dictionary to construct and config norm layer.
-            Default: None.
-        loss_point (dict): Dictionary to construct and config loss layer of
-            point head. Default: dict(type='CrossEntropyLoss', use_mask=True,
-            loss_weight=1.0).
+            the output of each fc layer. Defaults to True.
+        conv_cfg (:obj:`ConfigDict` or dict): Dictionary to construct
+            and config conv layer. Defaults to dict(type='Conv1d')).
+        norm_cfg (:obj:`ConfigDict` or dict, optional): Dictionary to construct
+            and config norm layer. Defaults to None.
+        loss_point (:obj:`ConfigDict` or dict): Dictionary to construct and
+            config loss layer of point head. Defaults to
+            dict(type='CrossEntropyLoss', use_mask=True, loss_weight=1.0).
+        init_cfg (:obj:`ConfigDict` or dict or list[:obj:`ConfigDict` or \
+            dict], optional): Initialization config dict.
     """
 
-    def __init__(self,
-                 num_classes,
-                 num_fcs=3,
-                 in_channels=256,
-                 fc_channels=256,
-                 class_agnostic=False,
-                 coarse_pred_each_layer=True,
-                 conv_cfg=dict(type='Conv1d'),
-                 norm_cfg=None,
-                 act_cfg=dict(type='ReLU'),
-                 loss_point=dict(
-                     type='CrossEntropyLoss', use_mask=True, loss_weight=1.0)):
-        super().__init__()
+    def __init__(
+        self,
+        num_classes: int,
+        num_fcs: int = 3,
+        in_channels: int = 256,
+        fc_channels: int = 256,
+        class_agnostic: bool = False,
+        coarse_pred_each_layer: bool = True,
+        conv_cfg: ConfigType = dict(type='Conv1d'),
+        norm_cfg: OptConfigType = None,
+        act_cfg: ConfigType = dict(type='ReLU'),
+        loss_point: ConfigType = dict(
+            type='CrossEntropyLoss', use_mask=True, loss_weight=1.0),
+        init_cfg: MultiConfig = dict(
+            type='Normal', std=0.001, override=dict(name='fc_logits'))
+    ) -> None:
+        super().__init__(init_cfg=init_cfg)
         self.num_fcs = num_fcs
         self.in_channels = in_channels
         self.fc_channels = fc_channels
@@ -55,7 +72,7 @@ class MaskPointHead(nn.Module):
         self.coarse_pred_each_layer = coarse_pred_each_layer
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
-        self.loss_point = build_loss(loss_point)
+        self.loss_point = MODELS.build(loss_point)
 
         fc_in_channels = in_channels + num_classes
         self.fcs = nn.ModuleList()
@@ -77,12 +94,8 @@ class MaskPointHead(nn.Module):
         self.fc_logits = nn.Conv1d(
             fc_in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
-    def init_weights(self):
-        """Initialize last classification layer of MaskPointHead, conv layers
-        are already initialized by ConvModule."""
-        normal_init(self.fc_logits, std=0.001)
-
-    def forward(self, fine_grained_feats, coarse_feats):
+    def forward(self, fine_grained_feats: Tensor,
+                coarse_feats: Tensor) -> Tensor:
         """Classify each point base on fine grained and coarse feats.
 
         Args:
@@ -93,7 +106,7 @@ class MaskPointHead(nn.Module):
 
         Returns:
             Tensor: Point classification results,
-                shape (num_rois, num_class, num_points).
+            shape (num_rois, num_class, num_points).
         """
 
         x = torch.cat([fine_grained_feats, coarse_feats], dim=1)
@@ -103,19 +116,22 @@ class MaskPointHead(nn.Module):
                 x = torch.cat((x, coarse_feats), dim=1)
         return self.fc_logits(x)
 
-    def get_targets(self, rois, rel_roi_points, sampling_results, gt_masks,
-                    cfg):
+    def get_targets(self, rois: Tensor, rel_roi_points: Tensor,
+                    sampling_results: List[SamplingResult],
+                    batch_gt_instances: InstanceList,
+                    cfg: ConfigType) -> Tensor:
         """Get training targets of MaskPointHead for all images.
 
         Args:
             rois (Tensor): Region of Interest, shape (num_rois, 5).
-            rel_roi_points: Points coordinates relative to RoI, shape
+            rel_roi_points (Tensor): Points coordinates relative to RoI, shape
                 (num_rois, num_points, 2).
             sampling_results (:obj:`SamplingResult`): Sampling result after
                 sampling and assignment.
-            gt_masks (Tensor) : Ground truth segmentation masks of
-                corresponding boxes, shape (num_rois, height, width).
-            cfg (dict): Training cfg.
+            batch_gt_instances (list[:obj:`InstanceData`]): Batch of
+                gt_instance. It usually includes ``bboxes``, ``labels``, and
+                ``masks`` attributes.
+            cfg (obj:`ConfigDict` or dict): Training cfg.
 
         Returns:
             Tensor: Point target, shape (num_rois, num_points).
@@ -133,9 +149,9 @@ class MaskPointHead(nn.Module):
         ]
         cfg_list = [cfg for _ in range(num_imgs)]
 
-        point_targets = map(self._get_target_single, rois_list,
+        point_targets = map(self._get_targets_single, rois_list,
                             rel_roi_points_list, pos_assigned_gt_inds_list,
-                            gt_masks, cfg_list)
+                            batch_gt_instances, cfg_list)
         point_targets = list(point_targets)
 
         if len(point_targets) > 0:
@@ -143,73 +159,63 @@ class MaskPointHead(nn.Module):
 
         return point_targets
 
-    def _get_target_single(self, rois, rel_roi_points, pos_assigned_gt_inds,
-                           gt_masks, cfg):
+    def _get_targets_single(self, rois: Tensor, rel_roi_points: Tensor,
+                            pos_assigned_gt_inds: Tensor,
+                            gt_instances: InstanceData,
+                            cfg: ConfigType) -> Tensor:
         """Get training target of MaskPointHead for each image."""
         num_pos = rois.size(0)
         num_points = cfg.num_points
         if num_pos > 0:
             gt_masks_th = (
-                gt_masks.to_tensor(rois.dtype, rois.device).index_select(
-                    0, pos_assigned_gt_inds))
+                gt_instances.masks.to_tensor(rois.dtype,
+                                             rois.device).index_select(
+                                                 0, pos_assigned_gt_inds))
             gt_masks_th = gt_masks_th.unsqueeze(1)
             rel_img_points = rel_roi_point_to_rel_img_point(
-                rois, rel_roi_points, gt_masks_th.shape[2:])
+                rois, rel_roi_points, gt_masks_th)
             point_targets = point_sample(gt_masks_th,
                                          rel_img_points).squeeze(1)
         else:
             point_targets = rois.new_zeros((0, num_points))
         return point_targets
 
-    def loss(self, point_pred, point_targets, labels):
+    def loss_and_target(self, point_pred: Tensor, rel_roi_points: Tensor,
+                        sampling_results: List[SamplingResult],
+                        batch_gt_instances: InstanceList,
+                        cfg: ConfigType) -> dict:
         """Calculate loss for MaskPointHead.
 
         Args:
             point_pred (Tensor): Point predication result, shape
                 (num_rois, num_classes, num_points).
-            point_targets (Tensor): Point targets, shape (num_roi, num_points).
-            labels (Tensor): Class label of corresponding boxes,
-                shape (num_rois, )
+            rel_roi_points (Tensor): Points coordinates relative to RoI, shape
+                (num_rois, num_points, 2).
+             sampling_results (:obj:`SamplingResult`): Sampling result after
+                sampling and assignment.
+            batch_gt_instances (list[:obj:`InstanceData`]): Batch of
+                gt_instance. It usually includes ``bboxes``, ``labels``, and
+                ``masks`` attributes.
+            cfg (obj:`ConfigDict` or dict): Training cfg.
 
         Returns:
-            dict[str, Tensor]: a dictionary of point loss components
+            dict: a dictionary of point loss and point target.
         """
+        rois = bbox2roi([res.pos_bboxes for res in sampling_results])
+        pos_labels = torch.cat([res.pos_gt_labels for res in sampling_results])
 
-        loss = dict()
+        point_target = self.get_targets(rois, rel_roi_points, sampling_results,
+                                        batch_gt_instances, cfg)
         if self.class_agnostic:
-            loss_point = self.loss_point(point_pred, point_targets,
-                                         torch.zeros_like(labels))
+            loss_point = self.loss_point(point_pred, point_target,
+                                         torch.zeros_like(pos_labels))
         else:
-            loss_point = self.loss_point(point_pred, point_targets, labels)
-        loss['loss_point'] = loss_point
-        return loss
+            loss_point = self.loss_point(point_pred, point_target, pos_labels)
 
-    def _get_uncertainty(self, mask_pred, labels):
-        """Estimate uncertainty based on pred logits.
+        return dict(loss_point=loss_point, point_target=point_target)
 
-        We estimate uncertainty as L1 distance between 0.0 and the logits
-        prediction in 'mask_pred' for the foreground class in `classes`.
-
-        Args:
-            mask_pred (Tensor): mask predication logits, shape (num_rois,
-                num_classes, mask_height, mask_width).
-
-            labels (list[Tensor]): Either predicted or ground truth label for
-                each predicted mask, of length num_rois.
-
-        Returns:
-            scores (Tensor): Uncertainty scores with the most uncertain
-                locations having the highest uncertainty score,
-                shape (num_rois, 1, mask_height, mask_width)
-        """
-        if mask_pred.shape[1] == 1:
-            gt_class_logits = mask_pred.clone()
-        else:
-            inds = torch.arange(mask_pred.shape[0], device=mask_pred.device)
-            gt_class_logits = mask_pred[inds, labels].unsqueeze(1)
-        return -torch.abs(gt_class_logits)
-
-    def get_roi_rel_points_train(self, mask_pred, labels, cfg):
+    def get_roi_rel_points_train(self, mask_preds: Tensor, labels: Tensor,
+                                 cfg: ConfigType) -> Tensor:
         """Get ``num_points`` most uncertain points with random points during
         train.
 
@@ -219,82 +225,60 @@ class MaskPointHead(nn.Module):
         input.
 
         Args:
-            mask_pred (Tensor): A tensor of shape (num_rois, num_classes,
+            mask_preds (Tensor): A tensor of shape (num_rois, num_classes,
                 mask_height, mask_width) for class-specific or class-agnostic
                 prediction.
-            labels (list): The ground truth class for each instance.
-            cfg (dict): Training config of point head.
+            labels (Tensor): The ground truth class for each instance.
+            cfg (:obj:`ConfigDict` or dict): Training config of point head.
 
         Returns:
             point_coords (Tensor): A tensor of shape (num_rois, num_points, 2)
-                that contains the coordinates sampled points.
+            that contains the coordinates sampled points.
         """
-        num_points = cfg.num_points
-        oversample_ratio = cfg.oversample_ratio
-        importance_sample_ratio = cfg.importance_sample_ratio
-        assert oversample_ratio >= 1
-        assert 0 <= importance_sample_ratio <= 1
-        batch_size = mask_pred.shape[0]
-        num_sampled = int(num_points * oversample_ratio)
-        point_coords = torch.rand(
-            batch_size, num_sampled, 2, device=mask_pred.device)
-        point_logits = point_sample(mask_pred, point_coords)
-        # It is crucial to calculate uncertainty based on the sampled
-        # prediction value for the points. Calculating uncertainties of the
-        # coarse predictions first and sampling them for points leads to
-        # incorrect results.  To illustrate this: assume uncertainty func(
-        # logits)=-abs(logits), a sampled point between two coarse
-        # predictions with -1 and 1 logits has 0 logits, and therefore 0
-        # uncertainty value. However, if we calculate uncertainties for the
-        # coarse predictions first, both will have -1 uncertainty,
-        # and sampled point will get -1 uncertainty.
-        point_uncertainties = self._get_uncertainty(point_logits, labels)
-        num_uncertain_points = int(importance_sample_ratio * num_points)
-        num_random_points = num_points - num_uncertain_points
-        idx = torch.topk(
-            point_uncertainties[:, 0, :], k=num_uncertain_points, dim=1)[1]
-        shift = num_sampled * torch.arange(
-            batch_size, dtype=torch.long, device=mask_pred.device)
-        idx += shift[:, None]
-        point_coords = point_coords.view(-1, 2)[idx.view(-1), :].view(
-            batch_size, num_uncertain_points, 2)
-        if num_random_points > 0:
-            rand_roi_coords = torch.rand(
-                batch_size, num_random_points, 2, device=mask_pred.device)
-            point_coords = torch.cat((point_coords, rand_roi_coords), dim=1)
+        point_coords = get_uncertain_point_coords_with_randomness(
+            mask_preds, labels, cfg.num_points, cfg.oversample_ratio,
+            cfg.importance_sample_ratio)
         return point_coords
 
-    def get_roi_rel_points_test(self, mask_pred, pred_label, cfg):
+    def get_roi_rel_points_test(self, mask_preds: Tensor, label_preds: Tensor,
+                                cfg: ConfigType) -> Tuple[Tensor, Tensor]:
         """Get ``num_points`` most uncertain points during test.
 
         Args:
-            mask_pred (Tensor): A tensor of shape (num_rois, num_classes,
+            mask_preds (Tensor): A tensor of shape (num_rois, num_classes,
                 mask_height, mask_width) for class-specific or class-agnostic
                 prediction.
-            pred_label (list): The predication class for each instance.
-            cfg (dict): Testing config of point head.
+            label_preds (Tensor): The predication class for each instance.
+            cfg (:obj:`ConfigDict` or dict): Testing config of point head.
 
         Returns:
-            point_indices (Tensor): A tensor of shape (num_rois, num_points)
-                that contains indices from [0, mask_height x mask_width) of the
-                most uncertain points.
-            point_coords (Tensor): A tensor of shape (num_rois, num_points, 2)
-                that contains [0, 1] x [0, 1] normalized coordinates of the
-                most uncertain points from the [mask_height, mask_width] grid .
+            tuple:
+
+            - point_indices (Tensor): A tensor of shape (num_rois, num_points)
+              that contains indices from [0, mask_height x mask_width) of the
+              most uncertain points.
+            - point_coords (Tensor): A tensor of shape (num_rois, num_points,
+              2) that contains [0, 1] x [0, 1] normalized coordinates of the
+              most uncertain points from the [mask_height, mask_width] grid.
         """
         num_points = cfg.subdivision_num_points
-        uncertainty_map = self._get_uncertainty(mask_pred, pred_label)
+        uncertainty_map = get_uncertainty(mask_preds, label_preds)
         num_rois, _, mask_height, mask_width = uncertainty_map.shape
-        h_step = 1.0 / mask_height
-        w_step = 1.0 / mask_width
 
-        uncertainty_map = uncertainty_map.view(num_rois,
-                                               mask_height * mask_width)
-        num_points = min(mask_height * mask_width, num_points)
+        # During ONNX exporting, the type of each elements of 'shape' is
+        # `Tensor(float)`, while it is `float` during PyTorch inference.
+        if isinstance(mask_height, torch.Tensor):
+            h_step = 1.0 / mask_height.float()
+            w_step = 1.0 / mask_width.float()
+        else:
+            h_step = 1.0 / mask_height
+            w_step = 1.0 / mask_width
+        # cast to int to avoid dynamic K for TopK op in ONNX
+        mask_size = int(mask_height * mask_width)
+        uncertainty_map = uncertainty_map.view(num_rois, mask_size)
+        num_points = min(mask_size, num_points)
         point_indices = uncertainty_map.topk(num_points, dim=1)[1]
-        point_coords = uncertainty_map.new_zeros(num_rois, num_points, 2)
-        point_coords[:, :, 0] = w_step / 2.0 + (point_indices %
-                                                mask_width).float() * w_step
-        point_coords[:, :, 1] = h_step / 2.0 + (point_indices //
-                                                mask_width).float() * h_step
+        xs = w_step / 2.0 + (point_indices % mask_width).float() * w_step
+        ys = h_step / 2.0 + (point_indices // mask_width).float() * h_step
+        point_coords = torch.stack([xs, ys], dim=2)
         return point_indices, point_coords

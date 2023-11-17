@@ -12,7 +12,10 @@ model = dict(
         patch_norm=True,
         use_checkpoint=False,
         alpha=0.9,
-        local_ws=[0, 0, 4, 1]
+        local_ws=[0, 0, 4, 1],
+        init_cfg=dict(
+            type='Pretrained',
+            checkpoint='https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_m.pth')
     ),
     neck=dict(
         type='FPN',

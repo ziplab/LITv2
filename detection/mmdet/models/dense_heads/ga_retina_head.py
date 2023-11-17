@@ -1,28 +1,55 @@
-import torch.nn as nn
-from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init
-from mmcv.ops import MaskedConv2d
+# Copyright (c) OpenMMLab. All rights reserved.
+from typing import Tuple
 
-from ..builder import HEADS
+import torch.nn as nn
+from mmcv.cnn import ConvModule
+from mmcv.ops import MaskedConv2d
+from torch import Tensor
+
+from mmdet.registry import MODELS
+from mmdet.utils import OptConfigType, OptMultiConfig
 from .guided_anchor_head import FeatureAdaption, GuidedAnchorHead
 
 
-@HEADS.register_module()
+@MODELS.register_module()
 class GARetinaHead(GuidedAnchorHead):
     """Guided-Anchor-based RetinaNet head."""
 
     def __init__(self,
-                 num_classes,
-                 in_channels,
-                 stacked_convs=4,
-                 conv_cfg=None,
-                 norm_cfg=None,
-                 **kwargs):
+                 num_classes: int,
+                 in_channels: int,
+                 stacked_convs: int = 4,
+                 conv_cfg: OptConfigType = None,
+                 norm_cfg: OptConfigType = None,
+                 init_cfg: OptMultiConfig = None,
+                 **kwargs) -> None:
+        if init_cfg is None:
+            init_cfg = dict(
+                type='Normal',
+                layer='Conv2d',
+                std=0.01,
+                override=[
+                    dict(
+                        type='Normal',
+                        name='conv_loc',
+                        std=0.01,
+                        bias_prob=0.01),
+                    dict(
+                        type='Normal',
+                        name='retina_cls',
+                        std=0.01,
+                        bias_prob=0.01)
+                ])
         self.stacked_convs = stacked_convs
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
-        super(GARetinaHead, self).__init__(num_classes, in_channels, **kwargs)
+        super().__init__(
+            num_classes=num_classes,
+            in_channels=in_channels,
+            init_cfg=init_cfg,
+            **kwargs)
 
-    def _init_layers(self):
+    def _init_layers(self) -> None:
         """Initialize layers of the head."""
         self.relu = nn.ReLU(inplace=True)
         self.cls_convs = nn.ModuleList()
@@ -49,8 +76,8 @@ class GARetinaHead(GuidedAnchorHead):
                     norm_cfg=self.norm_cfg))
 
         self.conv_loc = nn.Conv2d(self.feat_channels, 1, 1)
-        self.conv_shape = nn.Conv2d(self.feat_channels, self.num_anchors * 2,
-                                    1)
+        num_anchors = self.square_anchor_generator.num_base_priors[0]
+        self.conv_shape = nn.Conv2d(self.feat_channels, num_anchors * 2, 1)
         self.feature_adaption_cls = FeatureAdaption(
             self.feat_channels,
             self.feat_channels,
@@ -63,29 +90,13 @@ class GARetinaHead(GuidedAnchorHead):
             deform_groups=self.deform_groups)
         self.retina_cls = MaskedConv2d(
             self.feat_channels,
-            self.num_anchors * self.cls_out_channels,
+            self.num_base_priors * self.cls_out_channels,
             3,
             padding=1)
         self.retina_reg = MaskedConv2d(
-            self.feat_channels, self.num_anchors * 4, 3, padding=1)
+            self.feat_channels, self.num_base_priors * 4, 3, padding=1)
 
-    def init_weights(self):
-        """Initialize weights of the layer."""
-        for m in self.cls_convs:
-            normal_init(m.conv, std=0.01)
-        for m in self.reg_convs:
-            normal_init(m.conv, std=0.01)
-
-        self.feature_adaption_cls.init_weights()
-        self.feature_adaption_reg.init_weights()
-
-        bias_cls = bias_init_with_prob(0.01)
-        normal_init(self.conv_loc, std=0.01, bias=bias_cls)
-        normal_init(self.conv_shape, std=0.01)
-        normal_init(self.retina_cls, std=0.01, bias=bias_cls)
-        normal_init(self.retina_reg, std=0.01)
-
-    def forward_single(self, x):
+    def forward_single(self, x: Tensor) -> Tuple[Tensor]:
         """Forward feature map of a single scale level."""
         cls_feat = x
         reg_feat = x

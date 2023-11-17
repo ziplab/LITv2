@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/models/retinanet_fpn.py',
+    '../_base_/models/retinanet_litv2_fpn.py',
     '../_base_/datasets/coco_detection.py',
     '../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py'
 ]
@@ -12,7 +12,10 @@ model = dict(
         patch_norm=True,
         use_checkpoint=False,
         alpha=0.9,
-        local_ws=[0, 0, 2, 1]
+        local_ws=[0, 0, 2, 1],
+        init_cfg=dict(
+            type='Pretrained',
+            checkpoint='https://github.com/ziplab/LITv2/releases/download/v1.0/litv2_s.pth')
     ),
     neck=dict(
         type='FPN',
@@ -39,5 +42,3 @@ optimizer_config = dict(
     bucket_size_mb=-1,
     use_fp16=True,
 )
-
-# resume_from = 'path/to/latest.pth'
